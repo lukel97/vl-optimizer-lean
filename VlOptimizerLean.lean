@@ -13,23 +13,6 @@ instance : LE LaneCount where
     | .vlmax, .vlconst _ => false
     | .vlconst a, .vlconst b => a <= b
 
-def LaneCount.max (l1 l2 : LaneCount) : LaneCount :=
-  match l1, l2 with
-  | .vlmax, _ => .vlmax
-  | _, .vlmax => .vlmax
-  | .vlconst a, .vlconst b => .vlconst (a.max b) -- TODO: is this correct?
-
-@[simp]
-theorem LaneCount.max_comm {l1 l2 : LaneCount} : l1.max l2 = l2.max l1 := by
- rcases l1 with rfl | l1 <;> rcases l2 with rfl | l2 <;> simp [LaneCount.max, Nat.max, Nat.max_comm]
-
-@[simp]
-theorem LaneCount.max_idem {l : LaneCount} : l.max l = l := by
- rcases l with rfl | l <;> simp [LaneCount.max]
-
-theorem LaneCount.max_either {l1 l2 : LaneCount} : l1.max l2 = l1 ∨ l1.max l2 = l2 := by
-  cases l1 <;> cases l2 <;> simp [LaneCount.max]; exact Nat.le_total _ _
-
 instance (l1 l2 : LaneCount) : Decidable (l1 ≤ l2) := by
   cases l1 with
   | vlmax => cases l2 <;> simp [LE.le] <;> infer_instance
@@ -37,26 +20,16 @@ instance (l1 l2 : LaneCount) : Decidable (l1 ≤ l2) := by
     | vlmax => simp [LE.le]; infer_instance
     | vlconst n2 => exact inferInstanceAs (Decidable (n1 ≤ n2))
 
-@[simp]
-theorem LaneCount.le?_vlmax (l : LaneCount) : l ≤ .vlmax := by
-  rcases l with rfl | l <;> simp [LE.le]
-
-@[simp]
-theorem LaneCount.le_self_max (l1 l2 : LaneCount) : l1 ≤ (l1.max l2) := by
-  rcases l1 with rfl | l1 <;> rcases l2 with rfl | l2 <;> simp [instLELaneCount, LaneCount.max, Nat.max]
-
-
-@[simp]
-theorem LaneCount.le_max_self (l1 l2 : LaneCount) : l1 ≤ (l2.max l1) := by
-  rcases l1 with rfl | l1 <;> rcases l2 with rfl | l2 <;> simp [instLELaneCount, LaneCount.max, Nat.max]
-
-/-- Le is reflexive -/
-@[refl, simp]
-theorem LaneCount.le_refl (l : LaneCount) : l ≤ l := by cases l <;> simp [instLELaneCount]
+instance : Max LaneCount := maxOfLe
+instance : Min LaneCount := minOfLe
 
 namespace LaneCount
 
 variable {a b c : LaneCount}
+
+/-- Le is reflexive -/
+@[refl, simp]
+theorem le_refl (l : LaneCount) : l ≤ l := by cases l <;> simp [instLELaneCount]
 
 /-- Le is antisymmetric -/
 @[simp]
@@ -73,13 +46,73 @@ theorem le_trans : a ≤ b → b ≤ c → a ≤ c := by
   rcases a with _ | a <;> rcases b with _ | b <;> rcases c with _ | c <;>
     simp [instLELaneCount]; apply Nat.le_trans
 
-@[simp]
-theorem max_eq_left_of_le : a ≤ b → a.max b = b := by
-  cases a <;> cases b <;> simp [instLELaneCount, LaneCount.max, Nat.max]
+instance : Preorder LaneCount where
+  le_refl (a : LaneCount) : a ≤ a := LaneCount.le_refl a
+  le_trans (a b c : LaneCount) : a ≤ b → b ≤ c → a ≤ c := LaneCount.le_trans
+
+instance : PartialOrder LaneCount where
+  le_antisymm := LaneCount.le_antisymm
+
+protected theorem max_def {a b : LaneCount} : max a b = if a ≤ b then b else a := rfl
+protected theorem min_def {a b : LaneCount} : min a b = if a ≤ b then a else b := rfl
+
+instance : LinearOrder LaneCount where
+  le_total (a b : LaneCount) : a ≤ b ∨ b ≤ a := by
+    simp [instLELaneCount]
+    cases a <;> cases b <;> simp; apply Nat.le_total
+  toDecidableLE := inferInstance
+  max_def := @LaneCount.max_def
+  min_def := @LaneCount.min_def
+
+theorem Nat.le_neq_symm {a b : ℕ} (hle : a ≤ b) (hne : a ≠ b) : ¬ b ≤ a := by
+  apply not_le_of_lt
+  exact lt_of_le_of_ne hle hne
+
+
+theorem Nat.le_ite_congr {a b : ℕ} : (if a ≤ b then b else a) = (if b ≤ a then a else b) := by
+  by_cases h : a = b
+  · simp [h]
+  · by_cases h2 : a ≤ b
+    · simp [h2, Nat.le_neq_symm h2 h]
+    · simp [h2, Nat.le_of_not_ge h2]
 
 @[simp]
-theorem max_eq_right_of_le : b ≤ a → a.max b = a := by
-  cases a <;> cases b <;> simp [instLELaneCount, LaneCount.max, Nat.max]
+theorem max_comm {l1 l2 : LaneCount} : l1 ⊔ l2 = l2 ⊔ l1 := by
+  rcases l1 with _ | x <;> rcases l2 with _ | y <;> simp [LaneCount.max_def, instLELaneCount]
+  have h := le_or_gt x y
+  match h with
+  | Or.inl h =>
+    simp [h]
+    by_cases h2 : x = y
+    · simp [h2]
+    · simp [Nat.le_neq_symm h h2]
+  | Or.inr h =>
+    simp [Nat.not_le_of_gt h]
+    by_cases h2 : x = y
+    · simp [h2]
+    · have h3 : y ≤ x := by omega
+      simp [h3]
+
+@[simp]
+theorem max_idem {l : LaneCount} : l ⊔ l = l := by
+ rcases l with rfl | l <;> simp [LaneCount.max_def]
+
+theorem max_either {l1 l2 : LaneCount} : l1 ⊔ l2 = l1 ∨ l1 ⊔ l2 = l2 := by
+  cases l1 <;> cases l2 <;> simp only [LaneCount.max_def] <;> rw [Or.comm] <;> apply ite_eq_or_eq
+
+@[simp]
+theorem le?_vlmax (l : LaneCount) : l ≤ .vlmax := by
+  rcases l with rfl | l <;> simp [LE.le]
+
+@[simp]
+theorem le_self_max (l1 l2 : LaneCount) : l1 ≤ (l1 ⊔ l2) := by
+  simp [LaneCount.max_def]
+  by_cases h : l1 ≤ l2 <;> simp [h]
+
+@[simp]
+theorem le_max_self (l1 l2 : LaneCount) : l1 ≤ (l2 ⊔ l1) := by
+  rw [max_comm]
+  apply le_self_max
 
 @[simp]
 theorem le_nat {a b : Nat} : (vlconst a ≤ vlconst b) = (a ≤ b) := by rfl
@@ -95,22 +128,11 @@ theorem vlmax_le : vlmax ≤ a ↔ a = vlmax := by
 
 end LaneCount
 
-instance : Preorder LaneCount where
-  le_refl (a : LaneCount) : a ≤ a := LaneCount.le_refl a
-  le_trans (a b c : LaneCount) : a ≤ b → b ≤ c → a ≤ c := LaneCount.le_trans
-
-instance : PartialOrder LaneCount where
-  le_antisymm := LaneCount.le_antisymm
-
 instance : SemilatticeSup LaneCount where
-  sup := LaneCount.max
-  le_sup_left : ∀ a b : LaneCount, a ≤ a.max b := by
-    intros a b
-    simp [LaneCount.max]
-    cases a <;> cases b <;> simp
-  le_sup_right : ∀ a b : LaneCount, b ≤ a.max b := by
-    simp
-  sup_le : ∀ a b c : LaneCount, a ≤ c → b ≤ c → a.max b ≤ c := by
+  sup := max
+  le_sup_left : ∀ a b : LaneCount, a ≤ a ⊔ b := by simp
+  le_sup_right : ∀ a b : LaneCount, b ≤ a ⊔ b := by simp
+  sup_le : ∀ a b c : LaneCount, a ≤ c → b ≤ c → a ⊔ b ≤ c := by
     intro a b c hac hbc
     rcases @LaneCount.max_either a b with h | h <;> rw [h] <;> assumption
 
@@ -129,7 +151,7 @@ def joinOptionLaneCount  (a b : Option LaneCount) : Option LaneCount  :=
   match a, b with
   | .none, x => x
   | y, .none => y
-  | .some x, .some y => .some (x.max y)
+  | .some x, .some y => .some (x ⊔ y)
 
 @[simp]
 theorem joinOptionLaneCount_none_eq {a : Option LaneCount} :
@@ -144,7 +166,7 @@ theorem none_joinOptionLaneCount_eq {a : Option LaneCount} :
 
 @[simp]
 theorem some_joinOptionLaneCount_some_eq {a b : LaneCount} :
-  joinOptionLaneCount (some a) (some b) = some (a.max b) := by
+  joinOptionLaneCount (some a) (some b) = some (a ⊔ b) := by
   rcases a with rfl | a <;> simp [joinOptionLaneCount]
 
 @[simp]
@@ -260,8 +282,8 @@ theorem joinOptionLaneCount_eq_right_of_le (a b : Option LaneCount) (hab : a ≤
   simp_all
 
 theorem laneCountMax_max_le {a b c : LaneCount} (hac : a ≤ c) (hbc : b ≤ c) :
-  a.max b ≤ c := by
-  cases a <;> cases b <;> cases c <;> simp_all [LaneCount.max]
+  a ⊔ b ≤ c := by
+  cases a <;> cases b <;> cases c <;> simp_all
 
 theorem LeOptionlaneCount_join_le {a b c : Option LaneCount} (hac : a ≤ c) (hbc : b ≤ c) :
   joinOptionLaneCount a b ≤ c := by
@@ -425,7 +447,7 @@ theorem Map.join_empty {a b: Map n} : ∀ v, b v = none → (a.join b) v = a v :
 theorem Map.join_either {a b: Map n} : ∀ v, (a.join b v = a v) ∨ (a.join b v = b v) := by
   intro v
   simp [Map.join, joinOptionLaneCount]
-  cases a v <;> cases b v <;> simp; exact LaneCount.max_either
+  cases a v <;> cases b v <;> simp; apply LinearOrder.le_total
 
 -- a ≤ b => a ∪ c ≤ b ∪ c
 theorem Map.join_monotone {a b c : Map n} (hab : a ≤ b) : (a.join c) ≤ (b.join c) := by
@@ -555,9 +577,7 @@ theorem optionLaneCountMin_le_of_le_of_le (a b b' : Option LaneCount)
   · by_cases hab' : a ≤ b' <;> simp [hab']
     have _ : a ≤ b' := by apply le_trans <;> assumption
     contradiction
-  · by_cases hab' : a ≤ b' <;> simp_all [hab']
-
-
+  · by_cases hab' : a ≤ b' <;> simp [hb, hab, hab']
 
 theorem transfer_monotonic (i : Fin n) (vl : Fin n → Option LaneCount) (x y : Map n)
     (hxy : x ≤ y) : (transfer i vl x) ≤ (transfer i vl y) := by
