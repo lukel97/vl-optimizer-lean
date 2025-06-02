@@ -1,68 +1,68 @@
 import Mathlib.Order.Defs.PartialOrder
 import Mathlib.Order.Lattice
 
-inductive LaneCount
+inductive DemandedVL
 | vlmax
 | vlconst (n : Nat)
 deriving DecidableEq
 
-instance : LE LaneCount where
-  le (l1 l2 : LaneCount) : Prop :=
+instance : LE DemandedVL where
+  le (l1 l2 : DemandedVL) : Prop :=
     match l1, l2 with
     | _, .vlmax => true
     | .vlmax, .vlconst _ => false
     | .vlconst a, .vlconst b => a <= b
 
-instance (l1 l2 : LaneCount) : Decidable (l1 ≤ l2) := by
+instance (l1 l2 : DemandedVL) : Decidable (l1 ≤ l2) := by
   cases l1 with
   | vlmax => cases l2 <;> simp [LE.le] <;> infer_instance
   | vlconst n1 => cases l2 with
     | vlmax => simp [LE.le]; infer_instance
     | vlconst n2 => exact inferInstanceAs (Decidable (n1 ≤ n2))
 
-instance : Max LaneCount := maxOfLe
-instance : Min LaneCount := minOfLe
+instance : Max DemandedVL := maxOfLe
+instance : Min DemandedVL := minOfLe
 
-namespace LaneCount
+namespace DemandedVL
 
-variable {a b c : LaneCount}
+variable {a b c : DemandedVL}
 
 /-- Le is reflexive -/
 @[refl, simp]
-theorem le_refl (l : LaneCount) : l ≤ l := by cases l <;> simp [instLELaneCount]
+theorem le_refl : a ≤ a := by cases a <;> simp [instLEDemandedVL]
 
 /-- Le is antisymmetric -/
 @[simp]
 theorem le_antisymm_iff : a ≤ b ∧ b ≤ a ↔ (a = b) := by
-  cases a <;> cases b <;> simp [instLELaneCount, antisymm_iff]
+  cases a <;> cases b <;> simp [instLEDemandedVL, antisymm_iff]
 
 @[simp]
-theorem le_antisymm : ∀ a b : LaneCount, a ≤ b → b ≤ a → a = b := by
-  intros a b; cases a <;> cases b <;> simp [instLELaneCount]; omega
+theorem le_antisymm : ∀ a b : DemandedVL, a ≤ b → b ≤ a → a = b := by
+  intros a b; cases a <;> cases b <;> simp [instLEDemandedVL]; omega
 
 /-- Le is transitive -/
 @[simp]
 theorem le_trans : a ≤ b → b ≤ c → a ≤ c := by
   rcases a with _ | a <;> rcases b with _ | b <;> rcases c with _ | c <;>
-    simp [instLELaneCount]; apply Nat.le_trans
+    simp [instLEDemandedVL]; apply Nat.le_trans
 
-instance : Preorder LaneCount where
-  le_refl (a : LaneCount) : a ≤ a := LaneCount.le_refl a
-  le_trans (a b c : LaneCount) : a ≤ b → b ≤ c → a ≤ c := LaneCount.le_trans
+instance : Preorder DemandedVL where
+  le_refl (a : DemandedVL) : a ≤ a := DemandedVL.le_refl
+  le_trans (a b c : DemandedVL) : a ≤ b → b ≤ c → a ≤ c := DemandedVL.le_trans
 
-instance : PartialOrder LaneCount where
-  le_antisymm := LaneCount.le_antisymm
+instance : PartialOrder DemandedVL where
+  le_antisymm := DemandedVL.le_antisymm
 
-protected theorem max_def {a b : LaneCount} : max a b = if a ≤ b then b else a := rfl
-protected theorem min_def {a b : LaneCount} : min a b = if a ≤ b then a else b := rfl
+protected theorem max_def {a b : DemandedVL} : max a b = if a ≤ b then b else a := rfl
+protected theorem min_def {a b : DemandedVL} : min a b = if a ≤ b then a else b := rfl
 
-instance : LinearOrder LaneCount where
-  le_total (a b : LaneCount) : a ≤ b ∨ b ≤ a := by
-    simp [instLELaneCount]
+instance : LinearOrder DemandedVL where
+  le_total (a b : DemandedVL) : a ≤ b ∨ b ≤ a := by
+    simp [instLEDemandedVL]
     cases a <;> cases b <;> simp; apply Nat.le_total
   toDecidableLE := inferInstance
-  max_def := @LaneCount.max_def
-  min_def := @LaneCount.min_def
+  max_def := @DemandedVL.max_def
+  min_def := @DemandedVL.min_def
 
 theorem Nat.le_neq_symm {a b : ℕ} (hle : a ≤ b) (hne : a ≠ b) : ¬ b ≤ a := by
   apply not_le_of_lt
@@ -77,8 +77,8 @@ theorem Nat.le_ite_congr {a b : ℕ} : (if a ≤ b then b else a) = (if b ≤ a 
     · simp [h2, Nat.le_of_not_ge h2]
 
 @[simp]
-theorem max_comm {l1 l2 : LaneCount} : l1 ⊔ l2 = l2 ⊔ l1 := by
-  rcases l1 with _ | x <;> rcases l2 with _ | y <;> simp [LaneCount.max_def, instLELaneCount]
+theorem max_comm {l1 l2 : DemandedVL} : l1 ⊔ l2 = l2 ⊔ l1 := by
+  rcases l1 with _ | x <;> rcases l2 with _ | y <;> simp [DemandedVL.max_def, instLEDemandedVL]
   have h := le_or_gt x y
   match h with
   | Or.inl h =>
@@ -94,23 +94,23 @@ theorem max_comm {l1 l2 : LaneCount} : l1 ⊔ l2 = l2 ⊔ l1 := by
       simp [h3]
 
 @[simp]
-theorem max_idem {l : LaneCount} : l ⊔ l = l := by
- rcases l with rfl | l <;> simp [LaneCount.max_def]
+theorem max_idem {l : DemandedVL} : l ⊔ l = l := by
+ rcases l with rfl | l <;> simp [DemandedVL.max_def]
 
-theorem max_either {l1 l2 : LaneCount} : l1 ⊔ l2 = l1 ∨ l1 ⊔ l2 = l2 := by
-  cases l1 <;> cases l2 <;> simp only [LaneCount.max_def] <;> rw [Or.comm] <;> apply ite_eq_or_eq
+theorem max_either {l1 l2 : DemandedVL} : l1 ⊔ l2 = l1 ∨ l1 ⊔ l2 = l2 := by
+  cases l1 <;> cases l2 <;> simp only [DemandedVL.max_def] <;> rw [Or.comm] <;> apply ite_eq_or_eq
 
 @[simp]
-theorem le?_vlmax (l : LaneCount) : l ≤ .vlmax := by
+theorem le?_vlmax (l : DemandedVL) : l ≤ .vlmax := by
   rcases l with rfl | l <;> simp [LE.le]
 
 @[simp]
-theorem le_self_max (l1 l2 : LaneCount) : l1 ≤ (l1 ⊔ l2) := by
-  simp [LaneCount.max_def]
+theorem le_self_max (l1 l2 : DemandedVL) : l1 ≤ (l1 ⊔ l2) := by
+  simp [DemandedVL.max_def]
   by_cases h : l1 ≤ l2 <;> simp [h]
 
 @[simp]
-theorem le_max_self (l1 l2 : LaneCount) : l1 ≤ (l2 ⊔ l1) := by
+theorem le_max_self (l1 l2 : DemandedVL) : l1 ≤ (l2 ⊔ l1) := by
   rw [max_comm]
   apply le_self_max
 
@@ -119,25 +119,25 @@ theorem le_nat {a b : Nat} : (vlconst a ≤ vlconst b) = (a ≤ b) := by rfl
 
 @[simp]
 theorem neq_le_not_le : a ≤ b → a ≠ b → ¬ b ≤ a := by
-  cases a <;> cases b <;> simp [instLELaneCount]; omega
+  cases a <;> cases b <;> simp [instLEDemandedVL]; omega
 
 @[simp]
 theorem vlmax_le : vlmax ≤ a ↔ a = vlmax := by
-  cases a <;> simp [instLELaneCount]
+  cases a <;> simp [instLEDemandedVL]
 
 
-end LaneCount
+end DemandedVL
 
-instance : SemilatticeSup LaneCount where
+instance : SemilatticeSup DemandedVL where
   sup := max
-  le_sup_left : ∀ a b : LaneCount, a ≤ a ⊔ b := by simp
-  le_sup_right : ∀ a b : LaneCount, b ≤ a ⊔ b := by simp
-  sup_le : ∀ a b c : LaneCount, a ≤ c → b ≤ c → a ⊔ b ≤ c := by
+  le_sup_left : ∀ a b : DemandedVL, a ≤ a ⊔ b := by simp
+  le_sup_right : ∀ a b : DemandedVL, b ≤ a ⊔ b := by simp
+  sup_le : ∀ a b c : DemandedVL, a ≤ c → b ≤ c → a ⊔ b ≤ c := by
     intro a b c hac hbc
-    rcases @LaneCount.max_either a b with h | h <;> rw [h] <;> assumption
+    rcases @DemandedVL.max_either a b with h | h <;> rw [h] <;> assumption
 
 /-- Map -/
-abbrev Map (n : Nat) := Fin n -> Option LaneCount
+abbrev Map (n : Nat) := Fin n -> Option DemandedVL
 
 /-- Function/'Extensional' encoding of maps -/
 def Map.empty (n : Nat) : Map n := fun _ =>  none
@@ -147,155 +147,155 @@ def Map.top (n : Nat) : Map n := fun _ => .some .vlmax
 theorem Map.top_get (n : Nat) (v : Fin n) : Map.top n v = .some .vlmax := by
   simp [Map.top]
 
-def joinOptionLaneCount  (a b : Option LaneCount) : Option LaneCount  :=
+def joinOptionDemandedVL  (a b : Option DemandedVL) : Option DemandedVL  :=
   match a, b with
   | .none, x => x
   | y, .none => y
   | .some x, .some y => .some (x ⊔ y)
 
 @[simp]
-theorem joinOptionLaneCount_none_eq {a : Option LaneCount} :
-  joinOptionLaneCount a none = a := by
-  rcases a with rfl | a <;> simp [joinOptionLaneCount]
+theorem joinOptionDemandedVL_none_eq {a : Option DemandedVL} :
+  joinOptionDemandedVL a none = a := by
+  rcases a with rfl | a <;> simp [joinOptionDemandedVL]
 
 @[simp]
-theorem none_joinOptionLaneCount_eq {a : Option LaneCount} :
-  joinOptionLaneCount none a = a := by
-  rcases a with rfl | a <;> simp [joinOptionLaneCount]
-
-
-@[simp]
-theorem some_joinOptionLaneCount_some_eq {a b : LaneCount} :
-  joinOptionLaneCount (some a) (some b) = some (a ⊔ b) := by
-  rcases a with rfl | a <;> simp [joinOptionLaneCount]
-
-@[simp]
-theorem joinOptionLaneCount_comm {a b : Option LaneCount} :
-  joinOptionLaneCount a b = joinOptionLaneCount b a := by
-  rcases a with rfl | a <;> rcases b with rfl | b <;> simp [joinOptionLaneCount]
+theorem none_joinOptionDemandedVL_eq {a : Option DemandedVL} :
+  joinOptionDemandedVL none a = a := by
+  rcases a with rfl | a <;> simp [joinOptionDemandedVL]
 
 
 @[simp]
-theorem joinOptionLaneCount_idem {a : Option LaneCount} :
-   joinOptionLaneCount a a = a := by
+theorem some_joinOptionDemandedVL_some_eq {a b : DemandedVL} :
+  joinOptionDemandedVL (some a) (some b) = some (a ⊔ b) := by
+  rcases a with rfl | a <;> simp [joinOptionDemandedVL]
+
+@[simp]
+theorem joinOptionDemandedVL_comm {a b : Option DemandedVL} :
+  joinOptionDemandedVL a b = joinOptionDemandedVL b a := by
+  rcases a with rfl | a <;> rcases b with rfl | b <;> simp [joinOptionDemandedVL]
+
+
+@[simp]
+theorem joinOptionDemandedVL_idem {a : Option DemandedVL} :
+   joinOptionDemandedVL a a = a := by
   rcases a with rfl | a <;>
-  simp [joinOptionLaneCount]
+  simp [joinOptionDemandedVL]
 
 def Map.join {n : Nat} (a b : Map n) : Map n :=
-  fun v => joinOptionLaneCount (a v) (b v)
+  fun v => joinOptionDemandedVL (a v) (b v)
 
 @[simp]
 instance {n : Nat} : Max (Map n) where
   max := Map.join
 
-def Map.singleton {n : Nat} (v : Fin n) (l : LaneCount) : Map n :=
+def Map.singleton {n : Nat} (v : Fin n) (l : DemandedVL) : Map n :=
   fun w => if v = w then .some l else .none
 
-def Map.singletonOption {n : Nat} (v : Fin n) (l : Option LaneCount) : Map n :=
+def Map.singletonOption {n : Nat} (v : Fin n) (l : Option DemandedVL) : Map n :=
   fun w => if v = w then l else .none
 
-def Map.insert {n : Nat} (v : Fin n) (l : LaneCount) (map : Map n) : Map n :=
+def Map.insert {n : Nat} (v : Fin n) (l : DemandedVL) (map : Map n) : Map n :=
    (Map.singleton v l).join map
 
 def Map.mem? {n : Nat} (m : Map n) (v : Fin n) : Prop :=
-    ∃ (l : LaneCount), (m v) = some l
+    ∃ (l : DemandedVL), (m v) = some l
 
-instance : LE (Option LaneCount) where
-  le (l1 l2 : (Option LaneCount)) : Prop :=
+instance : LE (Option DemandedVL) where
+  le (l1 l2 : (Option DemandedVL)) : Prop :=
   match l1, l2 with
     | .none, _ => true
     | .some a, .some b => a ≤ b
     | .some _, .none => false
 
 @[simp]
-theorem none_LeOptionLaneCount {a : Option LaneCount} : none ≤ a := by
-  rcases a with rfl | a <;> simp [instLEOptionLaneCount]
+theorem none_LeOptionDemandedVL {a : Option DemandedVL} : none ≤ a := by
+  rcases a with rfl | a <;> simp [instLEOptionDemandedVL]
 
 @[simp]
-theorem LeOptionLaneCount_some_vlmax {a : Option LaneCount} : a ≤ (some .vlmax) := by
-  rcases a with rfl | a <;> simp [instLEOptionLaneCount]
+theorem LeOptionDemandedVL_some_vlmax {a : Option DemandedVL} : a ≤ (some .vlmax) := by
+  rcases a with rfl | a <;> simp [instLEOptionDemandedVL]
 
 @[refl, simp]
-theorem LeOptionLaneCount_refl {a : Option LaneCount} : a ≤ a := by
-  cases a <;> simp [instLEOptionLaneCount]
+theorem LeOptionDemandedVL_refl {a : Option DemandedVL} : a ≤ a := by
+  cases a <;> simp [instLEOptionDemandedVL]
 
 @[simp]
-theorem LeOptionLaneCount_antisymm {a b : Option LaneCount} : a ≤ b → b ≤ a → a = b := by
+theorem LeOptionDemandedVL_antisymm {a b : Option DemandedVL} : a ≤ b → b ≤ a → a = b := by
   intros
   match a, b with
   | .none, .none => rfl
   | .some a, .some b =>
-    simp_all [instLEOptionLaneCount]
-    apply LaneCount.le_antisymm <;> assumption
+    simp_all [instLEOptionDemandedVL]
+    apply DemandedVL.le_antisymm <;> assumption
 
 
 @[simp]
-theorem optionLaneCountLENone { x : Option LaneCount } : x ≤ none → x = none := by
+theorem optionDemandedVLLENone { x : Option DemandedVL } : x ≤ none → x = none := by
   intros
   cases x
   · rfl
-  · apply LeOptionLaneCount_antisymm
+  · apply LeOptionDemandedVL_antisymm
     assumption
     simp
 
 @[simp]
-theorem liftOptionLaneCountLE { a b : LaneCount } : (some a ≤ some b) = (a ≤ b) := rfl
+theorem liftOptionDemandedVLLE { a b : DemandedVL } : (some a ≤ some b) = (a ≤ b) := rfl
 
 @[simp]
-theorem LeOptionLaneCount_vlmax_le_iff_eq {a : Option LaneCount} : some .vlmax ≤ a ↔ a = some .vlmax := by
-  cases a <;> simp_all only [instLEOptionLaneCount]
+theorem LeOptionDemandedVL_vlmax_le_iff_eq {a : Option DemandedVL} : some .vlmax ≤ a ↔ a = some .vlmax := by
+  cases a <;> simp_all only [instLEOptionDemandedVL]
   · constructor <;> (intros; contradiction)
   · constructor
     · intros
-      apply LeOptionLaneCount_antisymm
-      exact LeOptionLaneCount_some_vlmax
-      apply liftOptionLaneCountLE.mp
+      apply LeOptionDemandedVL_antisymm
+      exact LeOptionDemandedVL_some_vlmax
+      apply liftOptionDemandedVLLE.mp
       assumption
     · simp_all
 
 @[simp]
-theorem optionLaneCountSomeNotLENone { x : LaneCount } : ¬ some x ≤ none := by
-  simp only [instLEOptionLaneCount, Bool.false_eq_true]
+theorem optionDemandedVLSomeNotLENone { x : DemandedVL } : ¬ some x ≤ none := by
+  simp only [instLEOptionDemandedVL, Bool.false_eq_true]
   exact fun a => a
 
 @[simp]
-theorem optionLaneCount_neq_le_not_le {a b : Option LaneCount} : a ≤ b → a ≠ b → ¬ b ≤ a := by
+theorem optionDemandedVL_neq_le_not_le {a b : Option DemandedVL} : a ≤ b → a ≠ b → ¬ b ≤ a := by
   cases a <;> cases b <;> simp_all
 
 @[simp]
-theorem LeOptionLaneCount_trans {a b c : Option LaneCount}
+theorem LeOptionDemandedVL_trans {a b c : Option DemandedVL}
     (hab : a ≤ b)
     (hbc : b ≤ c) :
     a ≤ c := by
   rcases a with rfl | la <;>
   rcases b with rfl | lb <;>
-  rcases c with rfl | lc <;> simp_all only [instLEOptionLaneCount, Bool.false_eq_true]
-  · apply LaneCount.le_trans <;> assumption
+  rcases c with rfl | lc <;> simp_all only [instLEOptionDemandedVL, Bool.false_eq_true]
+  · apply DemandedVL.le_trans <;> assumption
 
 @[simp]
-theorem joinOptionLaneCount_eq_right_of_le (a b : Option LaneCount) (hab : a ≤ b) :
-    joinOptionLaneCount a b = b := by
-  simp only [joinOptionLaneCount]
-  simp only [instLEOptionLaneCount, Bool.false_eq_true] at hab
+theorem joinOptionDemandedVL_eq_right_of_le (a b : Option DemandedVL) (hab : a ≤ b) :
+    joinOptionDemandedVL a b = b := by
+  simp only [joinOptionDemandedVL]
+  simp only [instLEOptionDemandedVL, Bool.false_eq_true] at hab
   rcases a with rfl | la <;>
   rcases b with rfl | lb <;>
   simp_all
 
-theorem laneCountMax_max_le {a b c : LaneCount} (hac : a ≤ c) (hbc : b ≤ c) :
+theorem laneCountMax_max_le {a b c : DemandedVL} (hac : a ≤ c) (hbc : b ≤ c) :
   a ⊔ b ≤ c := by
   cases a <;> cases b <;> cases c <;> simp_all
 
-theorem LeOptionlaneCount_join_le {a b c : Option LaneCount} (hac : a ≤ c) (hbc : b ≤ c) :
-  joinOptionLaneCount a b ≤ c := by
-  simp [joinOptionLaneCount]
+theorem LeOptionlaneCount_join_le {a b c : Option DemandedVL} (hac : a ≤ c) (hbc : b ≤ c) :
+  joinOptionDemandedVL a b ≤ c := by
+  simp [joinOptionDemandedVL]
   cases a <;> cases b <;> cases c <;> simp_all [laneCountMax_max_le]
 
 /-- We know that a ≤ b iff there exists an 'x' such that `a join x = b`. -/
-theorem LeOptionLaneCount_iff_exists_joinOptionLaneCount_eq {a b : Option LaneCount} :
-    a ≤ b ↔ ∃ (x : Option LaneCount), joinOptionLaneCount a x = b := by
+theorem LeOptionDemandedVL_iff_exists_joinOptionDemandedVL_eq {a b : Option DemandedVL} :
+    a ≤ b ↔ ∃ (x : Option DemandedVL), joinOptionDemandedVL a x = b := by
   constructor
   · intros hx
-    simp only [instLEOptionLaneCount] at hx
+    simp only [instLEOptionDemandedVL] at hx
     rcases a with rfl | la <;>
     rcases b with rfl | lb <;>
     simp_all
@@ -303,8 +303,8 @@ theorem LeOptionLaneCount_iff_exists_joinOptionLaneCount_eq {a b : Option LaneCo
     simp [hx]
   · intros hx
     obtain ⟨x, hx⟩ := hx
-    simp only [joinOptionLaneCount] at hx
-    simp only [instLEOptionLaneCount, Bool.false_eq_true]
+    simp only [joinOptionDemandedVL] at hx
+    simp only [instLEOptionDemandedVL, Bool.false_eq_true]
     rcases a with rfl | la <;>
     rcases b with rfl | lb <;>
     rcases x with rfl | lx <;> simp_all only <;> try simp only [reduceCtorEq] at hx
@@ -322,7 +322,7 @@ instance : LE (Map n) where
 @[refl, simp]
 theorem Map.le?_refl (m : Map n) : m ≤ m := by
   intro v
-  apply LeOptionLaneCount_refl
+  apply LeOptionDemandedVL_refl
 
 /-- Le is antisymmetric -/
 theorem Map.le?_antisymm (m1 m2 : Map n)
@@ -330,7 +330,7 @@ theorem Map.le?_antisymm (m1 m2 : Map n)
   ext v lv
   specialize (h1 v)
   specialize (h2 v)
-  have := LeOptionLaneCount_antisymm h1 h2
+  have := LeOptionDemandedVL_antisymm h1 h2
   simp [this]
 
 /-- Le is transitive -/
@@ -340,7 +340,7 @@ theorem Map.le?_trans {m1 m2 m3 : Map n}
   intros v
   specialize (h12 v)
   specialize (h23 v)
-  apply LeOptionLaneCount_trans <;> assumption
+  apply LeOptionDemandedVL_trans <;> assumption
 
 
 instance {n : Nat} {m : Map n} {v : Fin n} : Decidable (Map.mem? m v) :=
@@ -397,13 +397,13 @@ theorem Map.le_iff_exists_join_eq {a b : Map n} :
     intros v
     have  this : (a.join x) v = (b v) := by simp [hx]
     simp [Map.join] at this
-    apply LeOptionLaneCount_iff_exists_joinOptionLaneCount_eq.mpr
+    apply LeOptionDemandedVL_iff_exists_joinOptionDemandedVL_eq.mpr
     exists (x v)
 
 theorem Map.le_join? {a b : Map n} : a ≤ a.join b := by
   intro v
   simp [Map.join]
-  apply LeOptionLaneCount_iff_exists_joinOptionLaneCount_eq.mpr
+  apply LeOptionDemandedVL_iff_exists_joinOptionDemandedVL_eq.mpr
   exists (b v)
 
 instance : Preorder (Map n) where
@@ -437,7 +437,7 @@ theorem Map.le_all_none {a b : Map n} : ∀ v, a ≤ b → b v = none → a v = 
   simp [instLEMap] at h
   have h3 : a v ≤ b v := h v
   rw [h2] at h3
-  exact optionLaneCountLENone h3
+  exact optionDemandedVLLENone h3
 
 theorem Map.join_empty {a b: Map n} : ∀ v, b v = none → (a.join b) v = a v := by
   intros
@@ -446,7 +446,7 @@ theorem Map.join_empty {a b: Map n} : ∀ v, b v = none → (a.join b) v = a v :
 
 theorem Map.join_either {a b: Map n} : ∀ v, (a.join b v = a v) ∨ (a.join b v = b v) := by
   intro v
-  simp [Map.join, joinOptionLaneCount]
+  simp [Map.join, joinOptionDemandedVL]
   cases a v <;> cases b v <;> simp; apply LinearOrder.le_total
 
 -- a ≤ b => a ∪ c ≤ b ∪ c
@@ -486,14 +486,14 @@ theorem Map.le_top {p : Map n} : p ≤ Map.top n := by
 theorem mem_join_iff_mem_or_mem {n : Nat} : ∀ (v : Fin n) (p q : Map n), (p.join q).mem? v ↔ p.mem? v ∨ q.mem? v := by
   intros v p q
   constructor
-  · simp [Map.join, Map.mem?, joinOptionLaneCount]
+  · simp [Map.join, Map.mem?, joinOptionDemandedVL]
     intros l
     rcases hp : p v with _ | pval
     · simp [hp]
       intros hq
       simp [hq]
     · simp [hp]
-  · simp [Map.join, Map.mem?, joinOptionLaneCount]
+  · simp [Map.join, Map.mem?, joinOptionDemandedVL]
     intros h
     rcases h with hp | hq
     · obtain ⟨pl, hpl⟩ := hp
@@ -507,37 +507,37 @@ theorem mem_join_iff_mem_or_mem {n : Nat} : ∀ (v : Fin n) (p q : Map n), (p.jo
       · simp [hp]
 
 
-def optionLaneCountMin : Option LaneCount → Option LaneCount → Option LaneCount
+def optionDemandedVLMin : Option DemandedVL → Option DemandedVL → Option DemandedVL
   | .none, _ => none
   | _, .none => none
   | .some a, .some b => if a ≤ b then .some a else .some b
 
 @[simp]
-theorem optionLaneCountMinNone (x : Option LaneCount) : (optionLaneCountMin .none x) = .none := by
-  simp [optionLaneCountMin]
+theorem optionDemandedVLMinNone (x : Option DemandedVL) : (optionDemandedVLMin .none x) = .none := by
+  simp [optionDemandedVLMin]
 
 @[simp]
-theorem noneOptionLaneCountMin (x : Option LaneCount) : (optionLaneCountMin x .none) = .none := by
-  cases x <;> simp [optionLaneCountMin]
+theorem noneOptionDemandedVLMin (x : Option DemandedVL) : (optionDemandedVLMin x .none) = .none := by
+  cases x <;> simp [optionDemandedVLMin]
 
 @[simp]
-theorem optionLaneCountVLMax {x : Option LaneCount} : (optionLaneCountMin x (some .vlmax)) = x := by
-  cases x <;> simp [optionLaneCountMin]
+theorem optionDemandedVLVLMax {x : Option DemandedVL} : (optionDemandedVLMin x (some .vlmax)) = x := by
+  cases x <;> simp [optionDemandedVLMin]
 
 @[simp]
-theorem optionLaneCountVLMax2 {x : Option LaneCount} : (optionLaneCountMin (some .vlmax) x) = x := by
-  simp [optionLaneCountMin]
+theorem optionDemandedVLVLMax2 {x : Option DemandedVL} : (optionDemandedVLMin (some .vlmax) x) = x := by
+  simp [optionDemandedVLMin]
   cases x <;> simp_all
 
-theorem optionLaneCountMin_comm (a b : Option LaneCount) :
-  optionLaneCountMin a b = optionLaneCountMin b a :=
+theorem optionDemandedVLMin_comm (a b : Option DemandedVL) :
+  optionDemandedVLMin a b = optionDemandedVLMin b a :=
   match a, b with
     | .none, _ => by simp_all
     | _, .none => by simp_all
     | .some .vlmax, .some b1 => by simp
     | .some _, .some .vlmax => by simp
     | some (.vlconst a1), some (.vlconst b1) => by
-      simp only [optionLaneCountMin]
+      simp only [optionDemandedVLMin]
       by_cases hle : a1 ≤ b1
       · simp_all
         by_cases heq : a1 = b1
@@ -551,10 +551,10 @@ theorem optionLaneCountMin_comm (a b : Option LaneCount) :
           simp [hbnlea, heq]
           simp [Nat.le_of_not_ge hbnlea]
 
-def transfer (i : Fin n) (vl : Fin n → Option LaneCount) (x : Map n) : Map n :=
-  x.join (Map.singletonOption i (optionLaneCountMin (x i) (vl i)))
+def transfer (i : Fin n) (instr_vls x : Map n) : Map n :=
+  x.join (Map.singletonOption i (optionDemandedVLMin (x i) (instr_vls i)))
 
-theorem Map.singletonOption_le_of_le {i : Fin n} (a b : Option LaneCount)
+theorem Map.singletonOption_le_of_le {i : Fin n} (a b : Option DemandedVL)
     (hab : a ≤ b) :
     (Map.singletonOption i a) ≤ (Map.singletonOption i b) := by
  simp [instLEMap]
@@ -563,28 +563,28 @@ theorem Map.singletonOption_le_of_le {i : Fin n} (a b : Option LaneCount)
  by_cases hi : i = v <;> simp_all [hi]
 
 @[simp]
-theorem LaneCount.not_le_iff_le (a b : LaneCount) (hab : ¬ a ≤ b) : b ≤ a := by
+theorem DemandedVL.not_le_iff_le (a b : DemandedVL) (hab : ¬ a ≤ b) : b ≤ a := by
   revert hab
-  simp [instLELaneCount]
+  simp [instLEDemandedVL]
   rcases a with rfl | a <;> rcases b with rfl | b <;> simp_all ; omega
 
-theorem optionLaneCountMin_le_of_le_of_le (a b b' : Option LaneCount)
+theorem optionDemandedVLMin_le_of_le_of_le (a b b' : Option DemandedVL)
     (hb : b ≤ b') :
-    (optionLaneCountMin a b) ≤ (optionLaneCountMin a b') := by
+    (optionDemandedVLMin a b) ≤ (optionDemandedVLMin a b') := by
   rcases a with rfl | a <;> rcases b with rfl | b <;> rcases b' with rfl | b' <;>
-    simp_all [optionLaneCountMin]
+    simp_all [optionDemandedVLMin]
   by_cases hab : a ≤ b <;> simp [hab]
   · by_cases hab' : a ≤ b' <;> simp [hab']
     have _ : a ≤ b' := by apply le_trans <;> assumption
     contradiction
   · by_cases hab' : a ≤ b' <;> simp [hb, hab, hab']
 
-theorem transfer_monotonic (i : Fin n) (vl : Fin n → Option LaneCount) (x y : Map n)
-    (hxy : x ≤ y) : (transfer i vl x) ≤ (transfer i vl y) := by
+theorem transfer_monotonic (i : Fin n) (instr_vls : Map n) (x y : Map n)
+    (hxy : x ≤ y) : (transfer i instr_vls x) ≤ (transfer i instr_vls y) := by
   rw [transfer, transfer]
   apply Map.join_le_join_of_le_of_le
   · exact hxy
   · apply Map.singletonOption_le_of_le
-    rw [@optionLaneCountMin_comm (x i), @optionLaneCountMin_comm (y i)]
-    apply optionLaneCountMin_le_of_le_of_le
+    rw [@optionDemandedVLMin_comm (x i), @optionDemandedVLMin_comm (y i)]
+    apply optionDemandedVLMin_le_of_le_of_le
     apply hxy
