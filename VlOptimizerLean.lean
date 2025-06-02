@@ -136,15 +136,23 @@ instance : SemilatticeSup DemandedVL where
     intro a b c hac hbc
     rcases @DemandedVL.max_either a b with h | h <;> rw [h] <;> assumption
 
-/-- Map -/
-abbrev Map (n : Nat) := Fin n -> Option DemandedVL
+/-- Instructions are mapped to the natural numbers. -/
+abbrev Instr := Nat
+
+/--
+Our DemandedVL map is a map from instructions to DemandedVLs.
+Instructions might not be in the map, hence the Option.
+
+Represents the DenseMap<const MachineInstr *, DemandedVL> in RISCVVLOptimizer.cpp
+-/
+abbrev Map := Instr -> Option DemandedVL
 
 /-- Function/'Extensional' encoding of maps -/
-def Map.empty (n : Nat) : Map n := fun _ =>  none
+def Map.empty : Map := fun _ =>  none
 
-def Map.top (n : Nat) : Map n := fun _ => .some .vlmax
+def Map.top : Map := fun _ => .some .vlmax
 
-theorem Map.top_get (n : Nat) (v : Fin n) : Map.top n v = .some .vlmax := by
+theorem Map.top_get (v : Instr) : Map.top v = .some .vlmax := by
   simp [Map.top]
 
 def joinOptionDemandedVL  (a b : Option DemandedVL) : Option DemandedVL  :=
@@ -181,24 +189,21 @@ theorem joinOptionDemandedVL_idem {a : Option DemandedVL} :
   rcases a with rfl | a <;>
   simp [joinOptionDemandedVL]
 
-def Map.join {n : Nat} (a b : Map n) : Map n :=
+def Map.join (a b : Map) : Map :=
   fun v => joinOptionDemandedVL (a v) (b v)
 
 @[simp]
-instance {n : Nat} : Max (Map n) where
+instance : Max (Map) where
   max := Map.join
 
-def Map.singleton {n : Nat} (v : Fin n) (l : DemandedVL) : Map n :=
-  fun w => if v = w then .some l else .none
-
-def Map.singletonOption {n : Nat} (v : Fin n) (l : Option DemandedVL) : Map n :=
+def Map.singleton (v : Instr) (l : Option DemandedVL) : Map :=
   fun w => if v = w then l else .none
 
-def Map.insert {n : Nat} (v : Fin n) (l : DemandedVL) (map : Map n) : Map n :=
-   (Map.singleton v l).join map
+def Map.insert (v : Instr) (l : DemandedVL) (map : Map) : Map :=
+   fun w => if v = w then .some l else map w
 
-def Map.mem? {n : Nat} (m : Map n) (v : Fin n) : Prop :=
-    ∃ (l : DemandedVL), (m v) = some l
+def Map.mem? (m : Map) (i : Instr) : Prop :=
+    ∃ (l : DemandedVL), (m i) = some l
 
 instance : LE (Option DemandedVL) where
   le (l1 l2 : (Option DemandedVL)) : Prop :=
@@ -311,21 +316,18 @@ theorem LeOptionDemandedVL_iff_exists_joinOptionDemandedVL_eq {a b : Option Dema
     · simp at hx; subst hx; simp
     · simp at hx; subst hx; simp
 
-variable {n : Nat}
-
-instance : LE (Map n) where
-  le (a b : Map n) : Prop :=
-    ∀ (v : Fin n), a v ≤ b v
-
+instance : LE (Map) where
+  le (a b : Map) : Prop :=
+    ∀ (v : Instr), a v ≤ b v
 
 /-- Le is reflexive. -/
 @[refl, simp]
-theorem Map.le?_refl (m : Map n) : m ≤ m := by
-  intro v
+theorem Map.le?_refl (m : Map) : m ≤ m := by
+  intro i
   apply LeOptionDemandedVL_refl
 
 /-- Le is antisymmetric -/
-theorem Map.le?_antisymm (m1 m2 : Map n)
+theorem Map.le?_antisymm (m1 m2 : Map)
     (h1 : m1 ≤ m2) (h2 : m2 ≤ m1) : m1 = m2 := by
   ext v lv
   specialize (h1 v)
@@ -335,7 +337,7 @@ theorem Map.le?_antisymm (m1 m2 : Map n)
 
 /-- Le is transitive -/
 @[simp]
-theorem Map.le?_trans {m1 m2 m3 : Map n}
+theorem Map.le?_trans {m1 m2 m3 : Map}
     (h12 : m1 ≤ m2) (h23 : m2 ≤ m3) : m1 ≤ m3 := by
   intros v
   specialize (h12 v)
@@ -343,48 +345,48 @@ theorem Map.le?_trans {m1 m2 m3 : Map n}
   apply LeOptionDemandedVL_trans <;> assumption
 
 
-instance {n : Nat} {m : Map n} {v : Fin n} : Decidable (Map.mem? m v) :=
-  if hl : (m v).isSome
+instance {m : Map} {i : Instr} : Decidable (Map.mem? m i) :=
+  if hl : (m i).isSome
   then .isTrue (by simp [hl, Map.mem?]; exact Option.isSome_iff_exists.mp hl)
   else .isFalse (by simp [Map.mem?]; intros x hx; simp [hx] at hl)
 
 /-- A semilattice is a commutative idempotent monoid, which is compatible with the ordering. -/
 
 @[simp]
-theorem Map.join_comm {p q : Map n} : p.join q = q.join p := by
+theorem Map.join_comm {p q : Map} : p.join q = q.join p := by
   ext v lv
   simp [Map.join]
 
 /-- Map join is idempotent -/
-theorem Map.join_idem {p : Map n} : p.join p = p := by
+theorem Map.join_idem {p : Map} : p.join p = p := by
   ext v lv
   simp [Map.join]
 
 /-- Empty is identity. -/
-theorem Map.empty_join_eq {p : Map n} : (Map.empty n).join p = p := by
+theorem Map.empty_join_eq {p : Map} : (Map.empty).join p = p := by
   ext v lv
   simp [Map.join, Map.empty]
 
 /-- Empty is identity. -/
-theorem Map.join_empty_eq {p : Map n} : p.join (Map.empty n) = p := by
+theorem Map.join_empty_eq {p : Map} : p.join (Map.empty) = p := by
   ext v lv
   simp [Map.join, Map.empty]
 
 /-- Extensionality principle for maps -/
-theorem Map.eq_iff_ext_eq {p q : Map n} :  p = q ↔  (∀ v, p v = q v) := by
+theorem Map.eq_iff_ext_eq {p q : Map} :  p = q ↔  (∀ v, p v = q v) := by
   constructor
   · intros h; subst h; simp
   · intros h; ext v lv; rw [h v]
 
 @[ext]
-theorem Map.ext {p q : Map n} (h : ∀ v, p v = q v) : p = q := by
+theorem Map.ext {p q : Map} (h : ∀ v, p v = q v) : p = q := by
   apply Map.eq_iff_ext_eq.mpr h
 
-theorem Map.le_ext {p q : Map n} : p ≤ q ↔ ∀ v, p v ≤ q v := by
+theorem Map.le_ext {p q : Map} : p ≤ q ↔ ∀ v, p v ≤ q v := by
    simp [instLEMap]
 
 /-- Le is compatoble with join: a ≤ b iff exists m, a.join m = b -/
-theorem Map.le_iff_exists_join_eq {a b : Map n} :
+theorem Map.le_iff_exists_join_eq {a b : Map} :
     a ≤ b ↔ (∃ m, a.join m = b) := by
   constructor
   simp [instLEMap]
@@ -400,59 +402,59 @@ theorem Map.le_iff_exists_join_eq {a b : Map n} :
     apply LeOptionDemandedVL_iff_exists_joinOptionDemandedVL_eq.mpr
     exists (x v)
 
-theorem Map.le_join? {a b : Map n} : a ≤ a.join b := by
+theorem Map.le_join? {a b : Map} : a ≤ a.join b := by
   intro v
   simp [Map.join]
   apply LeOptionDemandedVL_iff_exists_joinOptionDemandedVL_eq.mpr
   exists (b v)
 
-instance : Preorder (Map n) where
-  le_refl (a : Map n) : a ≤ a := by rfl
-  le_trans (a b c : Map n) : a ≤ b → b ≤ c → a ≤ c := by
+instance : Preorder (Map) where
+  le_refl (a : Map) : a ≤ a := by rfl
+  le_trans (a b c : Map) : a ≤ b → b ≤ c → a ≤ c := by
     intros
     apply Map.le?_trans <;> assumption
 
-instance : PartialOrder (Map n) where
-  le_antisymm (a b : Map n) : a ≤ b → b ≤ a → a = b := by
+instance : PartialOrder (Map) where
+  le_antisymm (a b : Map) : a ≤ b → b ≤ a → a = b := by
     intros
     apply Map.le?_antisymm <;> assumption
 
-instance : SemilatticeSup (Map n) where
+instance : SemilatticeSup (Map) where
   sup := Map.join
-  le_sup_left : ∀ a b : Map n, a ≤ a.join b := by
+  le_sup_left : ∀ a b : Map, a ≤ a.join b := by
     intros
     exact Map.le_join?
-  le_sup_right : ∀ a b : Map n, b ≤ a.join b := by
+  le_sup_right : ∀ a b : Map, b ≤ a.join b := by
     intros a b
     rw [Map.join_comm]
     exact Map.le_join?
-  sup_le : ∀ a b c : Map n, a ≤ c → b ≤ c → a.join b ≤ c := by
+  sup_le : ∀ a b c : Map, a ≤ c → b ≤ c → a.join b ≤ c := by
     intros
     simp [instLEMap, Map.join]
     intros
     apply LeOptionlaneCount_join_le <;> apply Map.le_ext.mp <;> assumption
 
-theorem Map.le_all_none {a b : Map n} : ∀ v, a ≤ b → b v = none → a v = none := by
+theorem Map.le_all_none {a b : Map} : ∀ v, a ≤ b → b v = none → a v = none := by
   intro v h h2
   simp [instLEMap] at h
   have h3 : a v ≤ b v := h v
   rw [h2] at h3
   exact optionDemandedVLLENone h3
 
-theorem Map.join_empty {a b: Map n} : ∀ v, b v = none → (a.join b) v = a v := by
+theorem Map.join_empty {a b: Map} : ∀ v, b v = none → (a.join b) v = a v := by
   intros
   simp [instLEMap, Map.join]
   simp [*]
 
-theorem Map.join_either {a b: Map n} : ∀ v, (a.join b v = a v) ∨ (a.join b v = b v) := by
+theorem Map.join_either {a b: Map} : ∀ v, (a.join b v = a v) ∨ (a.join b v = b v) := by
   intro v
   simp [Map.join, joinOptionDemandedVL]
   cases a v <;> cases b v <;> simp; apply LinearOrder.le_total
 
 -- a ≤ b => a ∪ c ≤ b ∪ c
-theorem Map.join_monotone {a b c : Map n} (hab : a ≤ b) : (a.join c) ≤ (b.join c) := by
+theorem Map.join_monotone {a b c : Map} (hab : a ≤ b) : (a.join c) ≤ (b.join c) := by
   intro v
-  cases @Map.join_either n a c v with
+  cases @Map.join_either a c v with
   | inl h =>
     rw [h]
     apply Map.le?_trans hab
@@ -460,11 +462,11 @@ theorem Map.join_monotone {a b c : Map n} (hab : a ≤ b) : (a.join c) ≤ (b.jo
   | inr h => rw [h]; exact (SemilatticeSup.le_sup_right b c) v
 
 -- a ≤ a' => b ≤ b' => a ∪ b ≤ a' ∪ b'
-theorem Map.join_le_join_of_le_of_le {a a' b b' : Map n} (hab : a ≤ a') (hbc : b ≤ b') :
+theorem Map.join_le_join_of_le_of_le {a a' b b' : Map} (hab : a ≤ a') (hbc : b ≤ b') :
   (a.join b) ≤ (a'.join b') := by
   simp [instLEMap]
   intro v
-  rcases @Map.join_either n a b v with h | h <;> cases @Map.join_either n a' b' v
+  rcases @Map.join_either a b v with h | h <;> cases @Map.join_either a' b' v
   repeat
     rw [h]
     apply Map.le?_trans
@@ -473,22 +475,22 @@ theorem Map.join_le_join_of_le_of_le {a a' b b' : Map n} (hab : a ≤ a') (hbc :
     try apply SemilatticeSup.le_sup_left
 
 @[simp]
-theorem Map.bot_le {p : Map n} : (Map.empty n) ≤ p := by
+theorem Map.bot_le {p : Map} : (Map.empty) ≤ p := by
   intro v
   constructor
 
-theorem Map.le_top {p : Map n} : p ≤ Map.top n := by
+theorem Map.le_top {p : Map} : p ≤ Map.top := by
   intro v
   simp [top]
 
 
  -- ∀ x, x ∈ join a b ↔ x ∈ a ∨ x ∈ b := b
-theorem mem_join_iff_mem_or_mem {n : Nat} : ∀ (v : Fin n) (p q : Map n), (p.join q).mem? v ↔ p.mem? v ∨ q.mem? v := by
-  intros v p q
+theorem mem_join_iff_mem_or_mem : ∀ (i : Instr) (p q : Map), (p.join q).mem? i ↔ p.mem? i ∨ q.mem? i := by
+  intros i p q
   constructor
   · simp [Map.join, Map.mem?, joinOptionDemandedVL]
     intros l
-    rcases hp : p v with _ | pval
+    rcases hp : p i with _ | pval
     · simp [hp]
       intros hq
       simp [hq]
@@ -497,12 +499,12 @@ theorem mem_join_iff_mem_or_mem {n : Nat} : ∀ (v : Fin n) (p q : Map n), (p.jo
     intros h
     rcases h with hp | hq
     · obtain ⟨pl, hpl⟩ := hp
-      rcases hq : q v with _ | qval
+      rcases hq : q i with _ | qval
       · simp [hpl, hq]
       · simp [hpl, hq]
     · obtain ⟨ql, hql⟩ := hq
       simp [hql]
-      rcases hp : p v with _ | pval
+      rcases hp : p i with _ | pval
       · simp [hp]
       · simp [hp]
 
@@ -551,15 +553,12 @@ theorem optionDemandedVLMin_comm (a b : Option DemandedVL) :
           simp [hbnlea, heq]
           simp [Nat.le_of_not_ge hbnlea]
 
-def transfer (i : Fin n) (instr_vls x : Map n) : Map n :=
-  x.join (Map.singletonOption i (optionDemandedVLMin (x i) (instr_vls i)))
-
-theorem Map.singletonOption_le_of_le {i : Fin n} (a b : Option DemandedVL)
+theorem Map.singleton_le_of_le {i : Instr} (a b : Option DemandedVL)
     (hab : a ≤ b) :
-    (Map.singletonOption i a) ≤ (Map.singletonOption i b) := by
+    (Map.singleton i a) ≤ (Map.singleton i b) := by
  simp [instLEMap]
  intros v
- simp [singletonOption]
+ simp [Map.singleton]
  by_cases hi : i = v <;> simp_all [hi]
 
 @[simp]
@@ -579,12 +578,17 @@ theorem optionDemandedVLMin_le_of_le_of_le (a b b' : Option DemandedVL)
     contradiction
   · by_cases hab' : a ≤ b' <;> simp [hb, hab, hab']
 
-theorem transfer_monotonic (i : Fin n) (instr_vls : Map n) (x y : Map n)
-    (hxy : x ≤ y) : (transfer i instr_vls x) ≤ (transfer i instr_vls y) := by
+opaque instr_vls : Instr → Option DemandedVL
+
+def transfer (i : Instr) (x : Map) : Map :=
+  x.join (Map.singleton i (optionDemandedVLMin (x i) (instr_vls i)))
+
+theorem transfer_monotonic (i : Instr) (x y : Map)
+    (hxy : x ≤ y) : (transfer i x) ≤ (transfer i y) := by
   rw [transfer, transfer]
   apply Map.join_le_join_of_le_of_le
   · exact hxy
-  · apply Map.singletonOption_le_of_le
-    rw [@optionDemandedVLMin_comm (x i), @optionDemandedVLMin_comm (y i)]
+  · apply Map.singleton_le_of_le
+    rw [optionDemandedVLMin_comm (x i), optionDemandedVLMin_comm (y i)]
     apply optionDemandedVLMin_le_of_le_of_le
     apply hxy
