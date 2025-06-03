@@ -48,25 +48,8 @@ instance : LinearOrder DemandedVL where
   max_def := @DemandedVL.max_def
   min_def := @DemandedVL.min_def
 
-variable {a b c : DemandedVL}
-
-theorem Nat.le_neq_symm {a b : ℕ} (hle : a ≤ b) (hne : a ≠ b) : ¬ b ≤ a := by
-  apply not_le_of_lt
-  exact lt_of_le_of_ne hle hne
-
-theorem Nat.le_ite_congr {a b : ℕ} : (if a ≤ b then b else a) = (if b ≤ a then a else b) := by
-  by_cases h : a = b
-  · simp [h]
-  · by_cases h2 : a ≤ b
-    · simp [h2, Nat.le_neq_symm h2 h]
-    · simp [h2, Nat.le_of_not_ge h2]
-
 @[simp]
 theorem le_nat {a b : Nat} : (vlconst a ≤ vlconst b) = (a ≤ b) := by rfl
-
-@[simp]
-theorem neq_le_not_le : a ≤ b → a ≠ b → ¬ b ≤ a := by
-  cases a <;> cases b <;> simp [instLEDemandedVL]; omega
 
 instance : SemilatticeSup DemandedVL where
   sup := max
@@ -154,18 +137,19 @@ instance : OrderTop (Option DemandedVL) where
     cases a <;> simp [instTopOptionDemandedVL]
     exact le_top
 
-/-- Instructions are mapped to the natural numbers. -/
+/-- Instructions are represented by natural numbers. -/
 abbrev Instr := Nat
 
 /--
 Our DemandedVL map is a map from instructions to DemandedVLs.
+
+This is a function/'extensional' encoding.
+
 Instructions might not be in the map, hence the Option.
 
 Represents the DenseMap<const MachineInstr *, DemandedVL> in RISCVVLOptimizer.cpp
 -/
 abbrev Map := Instr -> Option DemandedVL
-
-/-- Function/'Extensional' encoding of maps -/
 
 instance : Bot Map where
   bot := fun _ => none
@@ -176,12 +160,10 @@ instance : OrderBot Map where
     simp
 
 instance : Top Map where
-  top := fun _ => .some .vlmax
+  top := fun _ => some .vlmax
 
 instance : OrderTop Map where
-  le_top {a : Map} : a ≤ ⊤ := by
-    intro v
-    simp
+  le_top {a : Map} : a ≤ ⊤ := by intro v; simp
 
 /-- 
 The join of two maps is the map created by joining each instruction's demanded VL.
@@ -189,41 +171,12 @@ The join of two maps is the map created by joining each instruction's demanded V
 instance : Max (Map) where
   max a b := fun v => (a v) ⊔ (b v)
 
-def Map.singleton (v : Instr) (l : Option DemandedVL) : Map :=
-  fun w => if v = w then l else .none
-
-def Map.insert (v : Instr) (l : DemandedVL) (map : Map) : Map :=
-   fun w => if v = w then .some l else map w
-
-@[simp]
-theorem optionDemandedVL_neq_le_not_le {a b : Option DemandedVL} : a ≤ b → a ≠ b → ¬ b ≤ a := by
-  cases a <;> cases b <;> simp_all
-
 instance : LE (Map) where
   le (a b : Map) : Prop :=
     ∀ (v : Instr), a v ≤ b v
 
-/-- Le is reflexive. -/
-@[refl, simp]
-theorem Map.le?_refl (m : Map) : m ≤ m := by
-  intro i
-  apply le_refl
-
-/-- Extensionality principle for maps -/
-theorem Map.eq_iff_ext_eq {p q : Map} :  p = q ↔  (∀ v, p v = q v) := by
-  constructor
-  · intros h; subst h; simp
-  · intros h; ext v lv; rw [h v]
-
-@[ext]
-theorem Map.ext {p q : Map} (h : ∀ v, p v = q v) : p = q := by
-  apply Map.eq_iff_ext_eq.mpr h
-
-theorem Map.le_ext {p q : Map} : p ≤ q ↔ ∀ v, p v ≤ q v := by
-   simp [instLEMap]
-
 instance : Preorder Map where
-  le_refl (a : Map) : a ≤ a := by rfl
+  le_refl (a : Map) : a ≤ a := by intro i; rfl
   le_trans (a b c : Map) : a ≤ b → b ≤ c → a ≤ c := by
     intros hab hbc
     intros v
@@ -234,9 +187,7 @@ instance : Preorder Map where
 instance : PartialOrder Map where
   le_antisymm (a b : Map) : a ≤ b → b ≤ a → a = b := by
     intros hab hba
-    ext v lv
-    specialize (hab v)
-    specialize (hba v)
+    ext i vl
     simp [le_antisymm hab hba]
 
 instance : SemilatticeSup Map where
@@ -255,24 +206,45 @@ instance : SemilatticeSup Map where
     intro v
     exact ⟨hab v, hbc v⟩
 
-theorem Map.singleton_le_of_le {i : Instr} (a b : Option DemandedVL)
+def Map.singleton (v : Instr) (l : Option DemandedVL) : Map :=
+  fun w => if v = w then l else .none
+
+theorem Map.singleton_le_of_le {i : Instr} {a b : Option DemandedVL}
     (hab : a ≤ b) :
     (Map.singleton i a) ≤ (Map.singleton i b) := by
- simp [instLEMap]
  intros v
- simp [Map.singleton]
- by_cases hi : i = v <;> simp_all [hi]
+ unfold Map.singleton
+ by_cases hi : i = v <;> simp [hi]; assumption
 
 opaque instr_vls : Instr → Option DemandedVL
+opaque instr_ops : Instr -> List Instr
+
+def transfer' (ops : List Instr) (demands : Option DemandedVL) (x : Map) : Map :=
+  match ops with
+  | (op :: rest) => Map.singleton op demands ⊔ transfer' rest demands x
+  | [] => ⊥
 
 def transfer (i : Instr) (x : Map) : Map :=
-  x ⊔ (Map.singleton i (min (x i) (instr_vls i)))
+  transfer' (instr_ops i) (min (x i) (instr_vls i)) x
 
-theorem transfer_monotonic (i : Instr) (x y : Map)
+theorem transfer'_monotonic {ops : List Instr} {d1 d2 : Option DemandedVL} {x y : Map} (h : x ≤ y) (hd : d1 ≤ d2) :
+  transfer' ops d1 x ≤ transfer' ops d2 y := by
+  unfold transfer'
+  cases ops
+  · simp
+  · simp
+    constructor
+    · apply le_sup_of_le_left
+      exact Map.singleton_le_of_le hd
+    · apply le_sup_of_le_right
+      apply transfer'_monotonic
+      repeat assumption
+
+theorem transfer_monotonic {i : Instr} {x y : Map}
     (hxy : x ≤ y) : (transfer i x) ≤ (transfer i y) := by
   unfold transfer
-  apply sup_le_sup
-  · exact hxy
-  · apply Map.singleton_le_of_le
-    apply min_le_min_right
-    apply hxy
+  apply transfer'_monotonic
+  assumption
+  apply min_le_min_right
+  apply hxy i
+  
