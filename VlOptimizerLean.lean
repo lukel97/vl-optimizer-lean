@@ -206,22 +206,24 @@ instance : SemilatticeSup Map where
     intro v
     exact ⟨hab v, hbc v⟩
 
-def Map.singleton (v : Instr) (l : Option DemandedVL) : Map :=
-  fun w => if v = w then l else .none
+def Map.insert (m : Map) (i : Instr) (x : Option DemandedVL) : Map :=
+  fun j => if i = j then x else m j
 
-theorem Map.singleton_le_of_le {i : Instr} {a b : Option DemandedVL}
-    (hab : a ≤ b) :
-    (Map.singleton i a) ≤ (Map.singleton i b) := by
- intros v
- unfold Map.singleton
- by_cases hi : i = v <;> simp [hi]; assumption
+theorem Map.insert_le_of_le {x y : Map} {vl1 vl2 : Option DemandedVL} {i : Instr} (hxy : x ≤ y) (hvl : vl1 ≤ vl2) : Map.insert x i vl1 ≤ Map.insert y i vl2 := by
+  intro j
+  unfold Map.insert
+  by_cases heq : i = j
+  · simp [heq]; assumption
+  · simp [heq]; exact hxy j
 
 opaque instr_vls : Instr → Option DemandedVL
 opaque instr_ops : Instr -> List Instr
 
 def transfer' (ops : List Instr) (demands : Option DemandedVL) (x : Map) : Map :=
   match ops with
-  | (op :: rest) => Map.singleton op demands ⊔ transfer' rest demands x
+  | (op :: rest) =>
+        let prev := transfer' rest demands x
+        Map.insert prev op (max (prev op) demands)
   | [] => ⊥
 
 def transfer (i : Instr) (x : Map) : Map :=
@@ -233,12 +235,11 @@ theorem transfer'_monotonic {ops : List Instr} {d1 d2 : Option DemandedVL} {x y 
   cases ops
   · simp
   · simp
-    constructor
-    · apply le_sup_of_le_left
-      exact Map.singleton_le_of_le hd
-    · apply le_sup_of_le_right
-      apply transfer'_monotonic
-      repeat assumption
+    apply Map.insert_le_of_le
+    apply transfer'_monotonic h hd
+    apply max_le_max
+    apply transfer'_monotonic h hd
+    assumption
 
 theorem transfer_monotonic {i : Instr} {x y : Map}
     (hxy : x ≤ y) : (transfer i x) ≤ (transfer i y) := by
