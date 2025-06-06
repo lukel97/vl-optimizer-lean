@@ -9,18 +9,17 @@ inductive DemandedVL
 deriving DecidableEq
 
 instance : LE DemandedVL where
-  le (l1 l2 : DemandedVL) : Prop :=
-    match l1, l2 with
-    | _, .vlmax => true
-    | .vlmax, .vlconst _ => false
-    | .vlconst a, .vlconst b => a <= b
+  le : DemandedVL → DemandedVL → Prop
+  | _, .vlmax => true
+  | .vlmax, .vlconst _ => false
+  | .vlconst a, .vlconst b => a ≤ b
 
-instance (l1 l2 : DemandedVL) : Decidable (l1 ≤ l2) := by
-  cases l1 with
-  | vlmax => cases l2 <;> simp [LE.le] <;> infer_instance
-  | vlconst n1 => cases l2 with
+instance (a b : DemandedVL) : Decidable (a ≤ b) := by
+  cases a with
+  | vlmax => cases b <;> simp [LE.le] <;> infer_instance
+  | vlconst x => cases b with
     | vlmax => simp [LE.le]; infer_instance
-    | vlconst n2 => exact inferInstanceAs (Decidable (n1 ≤ n2))
+    | vlconst y => exact inferInstanceAs (Decidable (x ≤ y))
 
 instance : Max DemandedVL := maxOfLe
 instance : Min DemandedVL := minOfLe
@@ -28,7 +27,10 @@ instance : Min DemandedVL := minOfLe
 namespace DemandedVL
 
 instance : Preorder DemandedVL where
-  le_refl (a : DemandedVL) : a ≤ a := by cases a <;> simp [instLEDemandedVL]
+  le_refl (a : DemandedVL) : a ≤ a := by
+    cases a
+    · rfl
+    · apply Nat.le_refl
   le_trans (a b c : DemandedVL) : a ≤ b → b ≤ c → a ≤ c := by
     rcases a with _ | a <;> rcases b with _ | b <;> rcases c with _ | c <;>
     simp [instLEDemandedVL]; apply Nat.le_trans
@@ -120,6 +122,8 @@ instance : SemilatticeInf (Option DemandedVL) where
   inf_le_right := min_le_right
   le_inf (_ _ _ : Option DemandedVL) := le_min
 
+instance : Lattice (Option DemandedVL) where
+
 instance : Bot (Option DemandedVL) where
   bot := none
 
@@ -171,7 +175,10 @@ The join of two maps is the map created by joining each instruction's demanded V
 instance : Max (Map) where
   max a b := fun v => (a v) ⊔ (b v)
 
-instance : LE (Map) where
+/--
+A map is considered less than or equal another map iff each instruction's demanded VL is less than or equal.
+-/
+instance : LE Map where
   le (a b : Map) : Prop :=
     ∀ (v : Instr), a v ≤ b v
 
@@ -209,7 +216,8 @@ instance : SemilatticeSup Map where
 def Map.insert (m : Map) (i : Instr) (x : Option DemandedVL) : Map :=
   fun j => if i = j then x else m j
 
-theorem Map.insert_le_of_le {x y : Map} {vl1 vl2 : Option DemandedVL} {i : Instr} (hxy : x ≤ y) (hvl : vl1 ≤ vl2) : Map.insert x i vl1 ≤ Map.insert y i vl2 := by
+theorem Map.insert_le_of_le {x y : Map} {vl1 vl2 : Option DemandedVL} {i : Instr}
+  (hxy : x ≤ y) (hvl : vl1 ≤ vl2) : Map.insert x i vl1 ≤ Map.insert y i vl2 := by
   intro j
   unfold Map.insert
   by_cases heq : i = j
@@ -219,33 +227,32 @@ theorem Map.insert_le_of_le {x y : Map} {vl1 vl2 : Option DemandedVL} {i : Instr
 opaque instr_vls : Instr → Option DemandedVL
 opaque instr_ops : Instr -> List Instr
 
-def transfer' (ops : List Instr) (demands : Option DemandedVL) (x : Map) : Map :=
+def transfer' (ops : List Instr) (i : Instr) (x : Map) : Map :=
   match ops with
   | (op :: rest) =>
-        let prev := transfer' rest demands x
-        Map.insert prev op (max (prev op) demands)
+        let prev := transfer' rest i x
+        Map.insert prev op (max (prev op) (min (x i) (instr_vls op)))
   | [] => ⊥
 
 def transfer (i : Instr) (x : Map) : Map :=
-  transfer' (instr_ops i) (min (x i) (instr_vls i)) x
+  transfer' (instr_ops i) i x
 
-theorem transfer'_monotonic {ops : List Instr} {d1 d2 : Option DemandedVL} {x y : Map} (h : x ≤ y) (hd : d1 ≤ d2) :
-  transfer' ops d1 x ≤ transfer' ops d2 y := by
+theorem transfer'_monotonic {ops : List Instr} {i : Instr} {x y : Map} (h : x ≤ y) :
+  transfer' ops i x ≤ transfer' ops i y := by
   unfold transfer'
   cases ops
   · simp
   · simp
     apply Map.insert_le_of_le
-    apply transfer'_monotonic h hd
+    apply transfer'_monotonic h
     apply max_le_max
-    apply transfer'_monotonic h hd
-    assumption
+    apply transfer'_monotonic h
+    apply min_le_min_right
+    exact h i
 
 theorem transfer_monotonic {i : Instr} {x y : Map}
     (hxy : x ≤ y) : (transfer i x) ≤ (transfer i y) := by
   unfold transfer
   apply transfer'_monotonic
   assumption
-  apply min_le_min_right
-  apply hxy i
   
